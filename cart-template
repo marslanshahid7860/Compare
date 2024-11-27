@@ -1,0 +1,1113 @@
+{% comment %}
+  ** Cart page - default view **
+  - Template section
+{% endcomment %}
+{% liquid
+  assign savedby = cart.items | where: 'vendor', 'SavedBy' | first
+  assign totalPrice = cart.total_price | minus: savedby.final_price
+  assign cartCount = cart.item_count
+  if savedby
+    assign cartCount = cartCount | minus: 1
+  endif
+  assign cartData = cart.items
+%}
+<style>
+          .cart_delete-custom-product-button[disabled] {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+  .cart-temp-header .page-title h1 {
+    margin-bottom: 10px;
+    margin-top: 3rem;
+}
+    .product-custom-patch-details{
+      display: flex;
+      flex-direction: row;
+      margin: 30px -15px 0;
+      border-top: 1px solid #E4E4E4;
+      padding-top: 30px;
+    }
+    .parent-item{
+      width: 15%;
+      padding: 0 15px;
+      box-sizing: content-box;
+      display: inline-block;
+    }
+    .child-items{
+      order: 2;
+      width:85%;
+      padding: 0 15px;
+    }
+    .parent-image{
+      height: 260px !important;
+      object-fit: cover;
+      aspect-ratio: 2 / 3;
+      object-position: top;
+      width: 100%;
+    }
+    .child-item{
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 10px;
+    }
+    .child-item > p{
+      order: 2;
+      margin: 0;
+      font-size: 12px;
+      color: #747474;
+    }
+    .child-image{
+     height: 30px !important;
+      width: 30px !important;
+      object-fit: contain;
+    }
+    .parent-child-wrapper{
+      width: 85%;
+      padding: 0 15px;
+      display: flex;
+      flex-direction: column-reverse;
+      height: fit-content;
+    }
+    .parent-price-title > h3{
+      font-size: 16px;
+      margin-top: 20px;
+      text-transform: capitalize;
+      letter-spacing: 0;
+    }
+    .parent-price-title > p{
+      padding:0;
+    }
+    .parent-patch-product-details{
+      display: flex;
+      margin: 30px -15px 0;
+      border-top: 1px solid #E4E4E4;
+      padding-top: 30px;
+    }
+    .parent-price-title{
+      display: flex;
+      justify-content: center;
+      align-items: center;
+  }
+    }
+    .parent-price-title > p{
+      font-size: 14px;
+      font-weight: 600;
+      color: #000 !important;
+      line-height: 19px;
+      letter-spacing: 0.7px;
+      margin:0;
+    }
+   #currency-format{
+     display:none;
+   }
+    .cart_delete-custom-product-button{
+      cursor: pointer;
+      text-decoration: underline;
+      text-transform: uppercase;
+      font-size: 12px !important;
+      font-weight: 400;
+      letter-spacing: 1px;
+      line-height: 1.2;
+      width: fit-content;
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+    }
+    .back-image{
+      display:none;
+    }
+  @media screen and (max-width: 768px) {
+     .parent-price-title > h3 {
+        font-size: 15px !important;
+        margin-top: 0 !important;
+     }
+    cart-remove-button .button.button--tertiary {
+    font-size: 8px !important;
+}
+    .cart_content .product-quantity-box .quantity, #cart_form .product-quantity-box .quantity {
+    font-size: 10px !important;
+}
+.cart-action-btn-flex-c button.wk-button.wk-align-center, .cart-action-btn-flex-c .heading-cart-change, .cart-action-btn-flex-c .quanitty-toggle-cart span.cancel-cart-btn {
+    font-size: 8px !important;
+}
+    #cart_form .product-quantity-box, .cart_content .product-quantity-box {
+        width: 60% !important;
+    }
+.cart-action-btn-flex-c {
+    gap: 10px !important;
+}
+     .parent-item {
+        width: 30% !important;
+     }
+  }
+</style>
+<a name="pagecontent" id="pagecontent"></a>
+<div id="currency-format" data-money-format="{{ shop.money_format }}"></div>
+<div class="main-container cart-temp-header">
+  <div class="row">
+    <div class="wi-100">
+      <div class="page-title">
+        <h1>{{ 'cart.general.title' | t }} ({{ cartCount }})</h1>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if cartCount == 0 %}
+  <div class="sixteen columns">
+    <div class="section clearfix">
+      <div class="six columns offset-by-five">
+        <p class="quote">{{ 'cart.general.continue_browsing_html' | t }}</p>
+
+        <a
+          href="{% if cart.items.first.product.collections != blank %}{{ cart.items.first.product.collections.last.url }}{% else %}/collections/all{% endif %}"
+          class="action_button continue-button add_to_cart"
+        >
+          {{- 'cart.general.continue_shopping_link_html' | t -}}
+        </a>
+      </div>
+      <br class="clear">
+    </div>
+  </div>
+{% else %}
+  <div class="main-container">
+    <div class="row">
+      <div class="wi-100">
+        <form action="/cart" method="post" id="cart_form">
+          <div class="section clearfix cart-section-row">
+            <div class="ten columns cart-section-left">
+              <div class="custom-patch-cart-data"></div>
+              {% assign total_saving = 0 %}
+              {% for item in cart.items %}
+                {% if item.properties._Timestamp %}
+                  {% continue %}
+                {% endif %}
+                {% if item.vendor == 'SavedBy' %}
+                  {% continue %}
+                {% endif %}
+                {% include 'wh_calculate_discount' with item.product %}
+                {% include 'wh_variant' with item.variant %}
+                {% assign wh_line_price = wh_v_price | minus: 0 | times: item.quantity %}
+
+                {% if wh_v_compare_at_price > wh_v_price %}
+                  {% assign saving = wh_v_compare_at_price | minus: wh_line_price %}
+                  {% assign total_saving = saving | plus: total_saving %}
+                {% endif %}
+
+                <div class="section clearfix cart_content_row" data-id="{{ item.product.id }}">
+                  <div class="three columns alpha cart_content_img">
+                    <a href="{{ item.url }}" title="{{ item.title | escape }}" class="cart_page_image">
+                      {% if item.properties._customized_image_url_front %}
+                        <img
+                          src="{{ item.properties._customized_image_url_front}}"
+                          alt="{{ item.title | escape }}"
+                          class="lazyload {{ settings.image_loading_style }}"
+                          style="max-width: {{- item.image.width -}}px"
+                          data-sizes="auto"
+                          data-src="{{ item | img_url: '900x' }}"
+                          data-srcset="
+                             {{ item.properties._customized_image_url_front }} 300w,
+                            {{ item.properties._customized_image_url_front }} 600w,
+                            {{ item.properties._customized_image_url_front }} 900w
+                          "
+                        >
+                      {% else %}
+                        <img
+                          src="{{ item | img_url: '100x' }}"
+                          alt="{{ item.title | escape }}"
+                          class="lazyload {{ settings.image_loading_style }}"
+                          style="max-width: {{- item.image.width -}}px"
+                          data-sizes="auto"
+                          data-src="{{ item | img_url: '900x' }}"
+                          data-srcset="
+                            {{ item | img_url: '300x' }} 300w,
+                            {{ item | img_url: '600x' }} 600w,
+                            {{ item | img_url: '900x' }} 900w
+                          "
+                        >
+                      {% endif %}
+                    </a>
+                  </div>
+
+                  <div class="seven columns omega cart_content_info">
+                    <h3>
+                      <a href="{{ item.url }}">
+                        {{- item.product.title }}
+                        <span class="saso-cart-item-discount-notes" data-key="{{item.key}}"></span>
+                        <span class="saso-cart-item-upsell-notes" data-key="{{item.key}}"></span>
+                      </a>
+                    </h3>
+                    {% comment %}
+                    {% endcomment %}
+
+                    {% if item.product.title == 'Gift Wrapping' %}
+                      <p class="cart-attribute__field">
+                        <label for="gift-message">Gift Message</label>
+                        <textarea
+                          id="gift-message"
+                          type="text"
+                          name="attributes[Gift Message]"
+                          value="{{ cart.attributes["Gift Message"] }}"
+                        ></textarea>
+                      </p>
+                    {% endif %}
+                    {% if item.product.title == 'Gift Card' %}
+                      <p class="cart-attribute__field">
+                        <label for="gift-message">Gift Message</label>
+                        <textarea
+                          id="gift-message"
+                          type="text"
+                          name="attributes[Gift Message-2]"
+                          value="{{ cart.attributes["Gift Message-2"] }}"
+                        ></textarea>
+                      </p>
+                    {% endif %}
+
+                    {% unless item.product.has_only_default_variant or item.variant.title contains 'Title' %}
+                      <p class="meta">
+                        {% for option in item.product.options %}
+                          <span class="label">{{ option }}:</span>
+                          <span>{{ item.variant.options[forloop.index0] }}</span><br>
+                        {% endfor %}
+                      </p>
+                    {% endunless %}
+
+                    <span
+                      class="Bold-theme-hook-DO-NOT-DELETE bold_cart_item_properties"
+                      style="display:none !important;"
+                    ></span>
+                    {%- if item.properties %}
+                      <p>
+                        {% for p in item.properties %}
+                          {%- if p.first contains 'Gift' -%}{%- continue -%}{%- endif -%}
+                          {%- if p.first.first == '_' -%}{%- continue -%}{%- endif -%}
+                          {% unless p.last == blank or p.first == '_preorder_locale' %}
+                            {% if p.last contains '/uploads/' %}
+                              <div>
+                                {% unless p.first contains '_is_preorder' -%}
+                                  {%- unless p.first == '_is_preorder' %}{{ p.first }}:{% endunless -%}
+                                {%- endunless %}
+                                <a class="lightbox" href="{{ p.last }}">{{ 'cart.general.uploaded_file' | t }}</a>
+                              </div>
+                            {% else %}
+                              <div>
+                                {% unless p.first contains '_is_preorder' -%}
+                                  {%- unless p.first == '_is_preorder' %}{{ p.first }}:{% endunless -%}
+                                {%- endunless %}
+                                {{ p.last }}
+                              </div>
+                            {% endif %}
+                          {% endunless %}
+                        {% endfor %}
+                      </p>
+                    {% endif %}
+
+                    {% comment %}
+                      <p class="modal_price">
+                        {% if wh_v_price > 0 %}
+                          <span class="">
+                          {% if customer.tags.size > 0 %}
+                          <span class="saso-cart-item-price" data-key="{{item.key}}">{{ wh_v_price | money }}</span>
+                          {% else %}
+                          <span class="saso-cart-item-price" data-key="{{item.key}}"><span class="Bold-theme-hook-DO-NOT-DELETE bold_cart_item_price" style="display:none !important;"></span>{{ wh_v_price | money }}</span>
+                          {% endif %}
+                          </span>
+                        {% else %}
+                          {{ settings.free_price_text }}
+                        {% endif %}
+
+                        {% if wh_v_price < wh_v_compare_at_price %}
+                          <span class="product-money was_price">{{ wh_v_compare_at_price | money }}</span>
+                        {% endif %}
+                      </p>
+                    {% endcomment %}
+                    <div class="modal_price cart-temp_price">
+                      {% if wh_v_compare_at_price > item.price %}
+                        <span
+                          class="c-cart__itemPrice c-cart__itemdiscountedprice"
+                          style="text-decoration: line-through;"
+                          rv-html="item.final_line_price | money Currency.currentCurrency"
+                          class="c-cart__itemPrice"
+                        >
+                          {{ wh_v_compare_at_price | money }}
+                        </span>
+
+                        <span
+                          class="c-cart__itemPrice"
+                          rv-html="item.discounted_line_price | money Currency.currentCurrency"
+                          class="c-cart__itemPrice"
+                        >
+                          {{ item.discounted_price | money }}
+                        </span>
+
+                      {% elsif item.original_price > item.discounted_price %}
+                        <span
+                          class="c-cart__itemPrice c-cart__itemdiscountedprice"
+                          style="text-decoration: line-through;"
+                          rv-html="item.final_line_price | money Currency.currentCurrency"
+                          class="c-cart__itemPrice"
+                        >
+                          {{ item.original_price | money }}
+                        </span>
+
+                        <span
+                          class="c-cart__itemPrice"
+                          rv-html="item.discounted_line_price | money Currency.currentCurrency"
+                          class="c-cart__itemPrice"
+                        >
+                          {{ item.discounted_price | money }}
+                        </span>
+
+                      {% else %}
+                        <span
+                          class="c-cart__itemPrice"
+                          rv-html="item.discounted_line_price | money Currency.currentCurrency"
+                          class="c-cart__itemPrice"
+                        >
+                          {{ item.original_price | money }}
+                        </span>
+                      {% endif %}
+                    </div>
+
+                   
+
+                    <div class="cart-action-btn-flex-c">
+                    <cart-remove-button
+                      id="Remove-{{ item.index | plus: 1 }}"
+                      data-index="{{ item.index | plus: 1 }}"
+                      data-item-key="{{ item.key }}"
+                    >
+                      <a
+                        href="{{ item.url_to_remove }}"
+                        class="button button--tertiary"
+                        aria-label="{{ 'remove' | t: title: item.title }}"
+                        onclick="removeItem(event, '{{ item.url_to_remove }}')"
+                      >
+                        Remove
+                      </a>
+                    </cart-remove-button>
+
+
+                    {% assign product_handle_full = item.url %}
+
+{%- assign product_handle_no_query = product_handle_full | split: '?' | first -%}
+{%- assign product_handle_filtered = product_handle_no_query | remove: '/products/' -%}
+
+
+
+                    
+                    <wishlist-button-collection data-product-handle="{{ product_handle_filtered }}" show-icon="" icon="wishlist" align-self="center" align-content="center" floating="{&quot;reference&quot;:&quot;[wk-id=\&quot;PKfLVkO8BZyS1zm57EObx\&quot;]&quot;,&quot;position&quot;:{&quot;placement&quot;:&quot;top-end&quot;,&quot;inset&quot;:true}}" wk-loaded="" data-preorder-handle="mia-pink-fringe-dress"><!---->
+       
+                    
+                      <wk-button class="wk-floating" style="position: absolute; top: 0px; left: 0px; transition: none; transform: translate3d(216px, 0px, 0px);"><!---->
+     <button type="button" aria-label="Add to Wishlist" class="wk-button wk-align-center wk-align-content-center">
+     
+      Move to favorites
+   
+      </button>
+    </wk-button>
+      </wishlist-button-collection>
+<div class="heading-cart-change">Edit</div>
+          
+</div>
+
+                                <div class="change-btn-cart-flex">
+                      
+
+                        <div class="quanitty-toggle-cart">
+                           <div class="product-quantity-box left">
+                      <span class="ss-icon product-minus js-change-quantity" data-func="minus"
+                        ><span class="icon-minus"></span
+                      ></span>
+                      <input
+                        type="number"
+                        min="0"
+                        size="2"
+                        class="quantity"
+                        name="updates[]"
+                        {% unless item.variant.inventory_management == blank
+                          or item.variant.inventory_policy == 'continue'
+                        %}
+                          max="{{ item.variant.inventory_quantity }}"
+                        {% endunless %}
+                        id="updates_{{ item.id }}"
+                        value="{{ item.quantity }}"
+                        data-line-id="{{ forloop.index }}"
+                        data-item-key="{{ item.key }}"
+                        {% if settings.limit_quantity
+                          and item.variant.inventory_management != blank
+                          and item.variant.inventory_quantity > 0
+                          and item.variant.inventory_policy == 'deny'
+                        %}
+                          max="{{ item.variant.inventory_quantity }}"
+                        {% endif %}
+                      >
+                      <span class="ss-icon product-plus js-change-quantity" data-func="plus"
+                        ><span class="icon-plus"></span
+                      ></span>
+                    </div>
+                          <div class="cancel-quantity-toggle">
+                          <span class="cancel-cart-btn">Cancel</span>
+                          </div>
+                        </div>
+                        
+                        
+                      </div>
+                    
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+
+            <div class="five columns offset-by-one cart-right-section">
+              <div class="section clearfix">
+                <div class="subtotal">
+                  <p class="cart_subtotal js-cart_subtotal">
+                    <span class="right">
+                      <span class="">
+                        <span class="saso-cart-original-total"
+                          ><span
+                            class="Bold-theme-hook-DO-NOT-DELETE bold_cart_total"
+                            style="display:none !important;"
+                          ></span
+                          ><span class="wh-original-cart-total"
+                            ><span class="ak-upsell-original-price">{{ totalPrice | money }}</span
+                            ><span class="ak-upsell-cart-total"></span></span
+                          ><span class="wh-cart-total"></span>
+                          <div class="additional-notes">
+                            <span class="wh-minimums-note"></span><span class="wh-extra-note"></span>
+                          </div>
+                        </span>
+                        <span class="saso-cart-total"></span>
+                      </span>
+                    </span>
+                    <span>{{ 'cart.general.subtotal' | t }}</span>
+                  </p>
+
+                  {% if section.settings.display_savings %}
+                    <p class="cart_savings sale">
+                      {% if total_saving > 0 %}
+                        <span class="right">
+                          <span class="">{{ total_saving | money }}</span>
+                        </span>
+                        <span>{{ 'layout.general.savings' | t }}</span>
+                      {% endif %}
+                    </p>
+                  {% endif %}
+
+                  {% if settings.show_multiple_currencies %}
+                    <p>
+                      <small>
+                        {{ 'cart.general.orders_processed_in_currency_html' | t: currency: shop.currency }}
+                      </small>
+                    </p>
+                  {% endif %}
+
+                  {% if section.settings.display_special_instructions %}
+                    <label for="note">{{ 'cart.general.note' | t: shop_name: shop.name }}:</label>
+                    <textarea id="note" name="note" rows="2">{{ cart.note }}</textarea>
+                  {% endif %}
+
+                  {% if section.settings.display_tos_checkbox %}
+                    <p>
+                      <input type="checkbox" class="tos_agree" id="cart_agree" required>
+                      <label class="tos_label" for="cart_agree">
+                        {{ 'cart.general.agree_to_terms_html' | t }}
+                      </label>
+                      {% if settings.tos_page != blank %}
+                        <a href="{{ pages[settings.tos_page].url }}" target="_blank" class="tos_icon">
+                          {{- 'cart.general.view_terms' | t -}}
+                        </a>
+                      {% endif %}
+                    </p>
+                  {% endif %}
+                  <input
+                    type="submit"
+                    class="action_button add_to_cart checkout-cart-page"
+                    id="checkout"
+                    name="checkout"
+                    value="{{ 'cart.general.checkout' | t }}"
+                  >
+
+                  {% if section.settings.cart_message != blank %}
+                    <div>
+                      {{ section.settings.cart_message }}
+                    </div>
+                  {% endif %}
+
+                  <p>
+                    <!-- Store pickup include on cart -->
+                    {% include 'creativer-store-pickup_v1_3' %}
+                  </p>
+                  <div></div>
+                  {% if content_for_additional_checkout_buttons %}
+                    <div class="additional-checkout-buttons">
+                      {% comment %}CreativeR | Store Pickup{% endcomment %}
+                      {% comment %}{{ content_for_additional_checkout_buttons }}{% endcomment %}
+                    </div>
+                  {% endif %}
+                  {% if shop.metafields.wh_net.enabled -%}
+                    {%- if customer.tags contains 'whnet' %}
+                      <div style="margin-top:30px;">
+                        <p>{{ shop.metafields.wh_net.wh_net_text }}</p>
+                        <a id="wh-30-open" class="button">{{ shop.metafields.wh_net.wh_net_button_text }}</a>
+                      </div>
+                    {% endif -%}
+                  {%- endif %}
+
+                  {% if cartCount > 0 %}
+                    <div class="featured-links">
+                      <a href="https://lolaandtheboys.com/collections/newarrivals" class="secondary_button">
+                        {{- 'cart.general.continue_shopping_link_html' | t -}}
+                      </a>
+                    </div>
+                  {% endif %}
+                  <savedby-widget cart-page></savedby-widget>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cross sell integration -->
+  {% include 'cross-sell' %}
+
+  {% include 'cart-shipping-calculator' %}
+{% endif %}
+
+<script>
+  function removeItem(event, urlToRemove) {
+    // Prevent the default behavior of the link
+    event.preventDefault();
+
+    // Perform the removal logic, e.g., using AJAX to update the cart on the server
+
+    // Reload the page
+    window.location.href = urlToRemove;
+  }
+</script>
+<!-- app snipet js -->
+<script>
+              // Function to fetch cart data from the server
+              function fetchCartDataAndUpdateVariable() {
+                fetch(window.Shopify.routes.root + 'cart.js', {
+                  method: 'GET',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  }
+                })
+                .then(response => {
+                  return response.json();
+                })
+                .then(data => {
+                  // Update the allCartData variable with the fetched data
+                  allCartData = data.items || [];
+                })
+                .catch(error => {
+                  console.error('Error fetching cart data:', error);
+                });
+              }
+
+              // Initialize allCartData as an empty array
+              var allCartData = [];
+
+              // Function to handle delete button click
+       function handleDeleteButtonClick(event) {
+        // Get the timestamp value from the data attribute of the clicked button
+        var timestamp = event.target.dataset.customizedTimestamp;
+
+        // Array to store the IDs of items to delete
+        var itemIdsToDelete = [];
+
+        // Iterate over each item in the cart data
+        allCartData.forEach(function(item) {
+            // Check if the item has the "_Timestamp" property equal to the timestamp
+            if (item.properties && item.properties._Timestamp === timestamp) {
+                // If it matches the condition, store its ID
+                itemIdsToDelete.push(item.key);
+            }
+        });
+
+        // Check if any item IDs were found
+        // if (itemIdsToDelete.length > 0) {
+        //     // Log items to delete
+        //     console.log("Items to delete:", itemIdsToDelete);
+
+        //     // Define a function to delete items one by one
+        //     function deleteItemsSequentially(index) {
+        //         if (index < itemIdsToDelete.length) {
+        //             var itemIdToDelete = itemIdsToDelete[index];
+        //             console.log("Deleting item with ID:", itemIdToDelete);
+
+        //             // Construct the updates object for the fetch request
+        //             var updates = {};
+        //             updates[itemIdToDelete] = 0; // Set the quantity to 0 to delete the item
+
+        //             // Send update request for the item
+        //             fetch(window.Shopify.routes.root + 'cart/update.js', {
+        //                 method: 'POST',
+        //                 headers: {
+        //                     'Content-Type': 'application/json'
+        //                 },
+        //                 body: JSON.stringify({ updates })
+        //             })
+        //             .then(response => response.json())
+        //             .then(data => {
+        //                 // Handle response if needed
+        //                 console.log("Update response:", data);
+        //                 console.log("Item with ID " + itemIdToDelete + " has been deleted.");
+
+        //                 // Delete next item recursively
+        //                 deleteItemsSequentially(index + 1);
+        //             })
+        //             .catch(error => {
+        //                 console.error('Error updating cart:', error);
+        //             });
+        //         } else {
+        //             console.log("All items have been deleted.");
+        //             location.reload();
+        //         }
+        //     }
+
+        //     // Start deleting items sequentially
+        //     deleteItemsSequentially(0);
+        // } else {
+        //     console.log("No items found with the specified timestamp.");
+        // }
+         if (itemIdsToDelete.length > 0) {
+      // Log items to delete
+      console.log("Items to delete:", itemIdsToDelete);
+
+      // Construct the updates object for the fetch request
+      var updates = {};
+      itemIdsToDelete.forEach(itemId => {
+          updates[itemId] = 0; // Set the quantity to 0 to delete the item
+      });
+
+      // Send update request for all items
+      fetch(window.Shopify.routes.root + 'cart/update.js', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ updates })
+      })
+      .then(response => response.json())
+      .then(data => {
+          // Handle response if needed
+          console.log("Update response:", data);
+          console.log("All specified items have been deleted.");
+
+          // Reload the page to reflect the updated cart
+          location.reload();
+      })
+      .catch(error => {
+          console.error('Error updating cart:', error);
+      });
+  } else {
+      console.log("No items found with the specified timestamp.");
+  }
+
+    }
+
+
+
+
+              // Event delegation to handle delete button click
+              document.addEventListener('click', function(event) {
+                if (event.target.classList.contains('cart_delete-custom-product-button')) {
+              var deleteButtons = document.querySelectorAll('.cart_delete-custom-product-button'); // Corrected selector
+              deleteButtons.forEach(function(deleteButton) {
+              deleteButton.style.pointerEvents = 'none';
+              deleteButton.style.opacity = '0.5';
+          });
+                  handleDeleteButtonClick(event);
+                }
+              });
+</script>
+<script>
+        // Assuming cartData is defined somewhere in your HTML or is a JavaScript variable available in this scope
+            var cartData = {{ cartData | json }};
+              console.log(cartData);
+            const timestampMap = {};
+        let specificVariantPrice = 0;
+
+// First, loop through cartData to find the price of variant 42085140430950
+cartData.forEach(item => {
+  console.log(item.variant_id);
+    if (item.variant_id === 42085140430950) {
+      console.log('true')
+        // Store the price of the specific variant for future calculations
+        specificVariantPrice = item.price; 
+    }
+});
+  console.log('stiching price',specificVariantPrice)
+            // Group items by _Timestamp
+             cartData.forEach(item => {
+                if (item.properties._Timestamp) { // Check if _Timestamp property exists
+                    const timestamp = item.properties._Timestamp;
+                    if (!timestampMap[timestamp]) {
+                        timestampMap[timestamp] = [];
+                    }
+                    if (item.properties._customized_image_url_front) {
+                        console.log('in');
+                        // console.log(item.properties.Font Color);
+                        const imageUrl = item.properties._customized_image_url_front;
+                        const backImageUrl = item.properties._customized_image_url_back ;
+                        const priceProduct = item.properties._patches_price; // Convert item.price to a string                  
+                        const timestamp = item.properties._Timestamp; // Convert item.price to a string  
+                       if (item.properties._embroideryProduct === 'Embroidery Product'){
+                        const textfont = item.properties.Font; // Convert item.price to a string                  
+                        const fontcolor = item.properties["Font Color"]; 
+                          const priceProduct1 = item.price;
+                        let finalPrice = priceProduct1 + Number(specificVariantPrice);
+                         timestampMap[timestamp].push({
+                            emb:'Embroidery',
+                            title: item.title,
+                            price:  Number(finalPrice) / 100,
+                            imageUrl: imageUrl, // Include imageUrl in the object being pushed to the array
+                            parentVariant: 'parent',
+                            timestampp: timestamp,
+                            textfont:textfont,
+                            fontcolor:fontcolor
+                        });
+                       }
+                       else{
+                          timestampMap[timestamp].push({
+                            title: item.title,
+                            price: priceProduct,
+                            imageUrl: imageUrl, // Include imageUrl in the object being pushed to the array
+                            parentVariant: 'parent',
+                            backImage: backImageUrl,
+                            timestampp: timestamp
+                        });
+                     }
+                       
+                    } else {
+                        const timestamp = item.properties._Timestamp; 
+                        const imageUrl = item.image;
+                        const priceProduct = String(item.price); // Convert item.price to a string
+                        const removedecimal = parseFloat(priceProduct.slice(0, -2));
+                        timestampMap[timestamp].push({
+                            title: item.title,
+                            price: removedecimal,
+                            imageUrl: imageUrl, // Include imageUrl in the object being pushed to the array
+                            parentVariant: item.properties._parent_variant,
+                            timestampp: timestamp
+                        });
+                    }
+        
+                }
+            });
+        
+            // Convert the values of timestampMap to arrays of arrays
+            const filteredAndGroupedData = [];
+            for (const timestamp in timestampMap) {
+                filteredAndGroupedData.push(timestampMap[timestamp]);
+            }
+        
+            // Get the target div
+            const customPatchCartData = document.querySelector('.custom-patch-cart-data');
+        
+            // Iterate over each timestamp group
+            filteredAndGroupedData.forEach(timestampGroup => {
+                // Create a new div for each timestamp group
+                const parentPatchProductDetailsDiv = document.createElement('div');
+                parentPatchProductDetailsDiv.classList.add('parent-patch-product-details');
+        
+                // Create a new div to contain child items and parent price/title
+                const parentChildWrapperDiv = document.createElement('div');
+                parentChildWrapperDiv.classList.add('parent-child-wrapper');
+                timestampGroup.forEach(item => {
+  if (item.parentVariant === 'parent') {
+    // Create the delete button
+    var deletebutton = document.createElement('a');
+    deletebutton.classList.add('cart_delete-custom-product-button');
+    deletebutton.textContent = 'remove';
+    deletebutton.setAttribute('data-customized-timestamp', item.timestampp);
+    deletebutton.setAttribute('disabled', 'true'); // Initially disable the button
+    parentChildWrapperDiv.appendChild(deletebutton);
+    
+    // Enable the delete button after 3 seconds
+    window.addEventListener('load', function() {
+        setTimeout(function() {
+            deletebutton.removeAttribute('disabled');
+        }, 3000);
+    });
+if (item.emb === 'Embroidery'){
+    // Create the first div for textfont
+    var textFontDiv = document.createElement('div');
+    textFontDiv.classList.add('child-item');
+    
+    // Create a p tag for textfont inside the div
+    var textFontP = document.createElement('p');
+    textFontP.textContent = 'Font: ' + item.textfont;
+    
+    // Append p tag to the textFontDiv
+    textFontDiv.appendChild(textFontP);
+
+    // Append the textFontDiv to parentChildWrapperDiv
+    parentChildWrapperDiv.appendChild(textFontDiv);
+
+    // Create the second div for fontcolor
+    var fontColorDiv = document.createElement('div');
+    fontColorDiv.classList.add('child-item');
+    
+    // Create a p tag for fontcolor inside the div
+    var fontColorP = document.createElement('p');
+    fontColorP.textContent = 'Font Color: ' + item.fontcolor;
+    
+    // Append p tag to the fontColorDiv
+    fontColorDiv.appendChild(fontColorP);
+
+    // Append the fontColorDiv to parentChildWrapperDiv
+    parentChildWrapperDiv.appendChild(fontColorDiv);
+}
+  
+}
+
+
+
+});
+
+               
+               
+                
+                // Create a new div for parent price and title
+                const parentPriceTitleDiv = document.createElement('div');
+                parentPriceTitleDiv.classList.add('parent-price-title');
+        
+                console.log(timestampMap)
+                // Iterate over items in the timestamp group
+                timestampGroup.forEach(item => {
+                    
+                    // Create a new div element for the item
+                    const div = document.createElement('div');
+                    div.classList.add(item.parentVariant === 'parent' ? 'parent-item' : 'child-item');
+        
+                    // Create h3 element for title
+                    const title = document.createElement('h3');
+                    title.textContent = item.title;
+                    
+    
+                    var currencyFormat = document.getElementById('currency-format').dataset.moneyFormat;
+                    var amountPlaceholder = currencyFormat.match(/\{\{amount\}\}/)[0];
+                    var currencySymbol = currencyFormat.replace(amountPlaceholder, '');
+                    
+                    // Create p element for title and price
+                    const titleAndPrice = document.createElement('p');
+                    if (item.parentVariant === 'parent') {
+                      if (item.emb === 'Embroidery'){
+                        titleAndPrice.textContent = `${currencySymbol} ${item.price}`;
+                      }else{
+                        titleAndPrice.textContent = `${item.price}`; // Fix concatenation
+                      }
+                        
+                    } else {
+                        titleAndPrice.textContent = `${item.title} - ${currencySymbol} ${item.price}`; // Fix concatenation
+                    }
+                    
+        
+                    // Create img element for image
+                    const img = document.createElement('img');
+                    const backimg =document.createElement('img')
+                    if(item.parentVariant === 'parent' ){
+                    img.src = item.imageUrl;
+                    img.alt = 'Parent Image';
+                    img.classList.add('parent-image','front-image');
+                    backimg.src = item.backImage;
+                     backimg.alt = 'Back Image';
+                     backimg.classList.add('parent-image','back-image' );
+                     
+                    }else{
+                      img.src = item.imageUrl;
+                      img.alt = 'Child Image';
+                      img.classList.add('child-image');   
+                    }
+                    
+                   // img.alt = item.parentVariant === 'parent' ? 'Parent Image' : 'Child Image';
+                   // img.classList.add(item.parentVariant === 'parent' ? 'parent-image' : 'child-image');
+        
+                    // Append title, price, and img elements to the div
+                    div.appendChild(titleAndPrice);
+                    div.appendChild(img);
+                    div.appendChild(backimg);
+                   
+                    
+                    // If it's a parent item, append the title and price to the parentPriceTitleDiv
+                    if (item.parentVariant === 'parent') {
+                        parentPriceTitleDiv.appendChild(title);
+                        parentPriceTitleDiv.appendChild(titleAndPrice);
+                    }
+                    if (item.parentVariant === 'parent') {
+                        parentPatchProductDetailsDiv.appendChild(div);
+                    }
+                    else {
+        
+                        // Append the div to the parentChildWrapperDiv
+                       
+                        parentChildWrapperDiv.appendChild(div);
+                    }
+        
+                });
+             
+                // Append the parentPriceTitleDiv to the parentChildWrapperDiv
+                parentChildWrapperDiv.appendChild(parentPriceTitleDiv);
+    
+                // Wrap child items and parent price/title in a new div
+                parentPatchProductDetailsDiv.appendChild(parentChildWrapperDiv);
+        
+                // Append the parentPatchProductDetailsDiv to the target div
+                customPatchCartData.appendChild(parentPatchProductDetailsDiv);
+            });
+
+
+
+
+
+// Function to modify the button
+function modifyWishlistButton(button) {
+    if (button) {
+        // Remove the SVG
+        const svg = button.querySelector('svg');
+        if (svg) {
+            svg.remove();
+        }
+        // Add text "Move to Favourite"
+        button.textContent = 'Move to Favourites';
+    }
+}
+
+// Set up MutationObserver
+const observer = new MutationObserver((mutationsList) => {
+    mutationsList.forEach((mutation) => {
+        if (mutation.type === 'childList') {
+            mutation.addedNodes.forEach((node) => {
+                // Check if the added node is the desired button
+                if (node.nodeType === 1 && node.matches('button.wk-button')) {
+                    modifyWishlistButton(node);
+                }
+                
+                // If the added node is a parent containing multiple buttons
+                if (node.nodeType === 1) {
+                    const buttons = node.querySelectorAll('button.wk-button');
+                    buttons.forEach(modifyWishlistButton);
+                }
+            });
+        }
+    });
+});
+
+// Start observing the body for added elements
+observer.observe(document.body, {
+    childList: true,
+    subtree: true, // To catch changes deep in the DOM tree
+});
+
+
+document.addEventListener('click', function(event) {
+    if (event.target.classList.contains('heading-cart-change')) {
+        // Add 'active' class
+        document.querySelectorAll('.cart-action-btn-flex-c, .change-btn-cart-flex')
+            .forEach(function(element) {
+                element.classList.add('active');
+            });
+    }
+
+    if (event.target.classList.contains('cancel-cart-btn')) {
+        // Remove 'active' class
+        document.querySelectorAll('.cart-action-btn-flex-c, .change-btn-cart-flex')
+            .forEach(function(element) {
+                element.classList.remove('active');
+            });
+    }
+});
+
+
+  
+</script>
+{% schema %}
+{
+  "name": "Cart page",
+  "class": "cart-section",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "display_special_instructions",
+      "label": "Show \"note\" text box"
+    },
+    {
+      "type": "checkbox",
+      "id": "display_tos_checkbox",
+      "label": "Show \"agree to terms\" checkbox"
+    },
+    {
+      "type": "checkbox",
+      "id": "display_savings",
+      "label": "Show total savings",
+      "default": true
+    },
+    {
+      "type": "richtext",
+      "id": "cart_message",
+      "label": "Cart message"
+    }
+  ]
+}
+{% endschema %}
+
+<style>
+
+
+button.wk-button.wk-align-center, .heading-cart-change, .quanitty-toggle-cart span.cancel-cart-btn {
+    font-family: Proxima Nova Rg;
+    text-decoration: underline;
+		font-size:12px !important;
+		text-transform: uppercase;
+		letter-spacing:1px !important;
+}
+
+.cart-action-btn-flex-c .wk-button.wk-align-center {
+    width: 100%;
+}
+.cart-action-btn-flex-c {
+    display: flex;
+    align-items: center;
+    clear: both;
+    gap: 18px;
+    padding-top: 20px !important;
+}
+
+.change-btn-cart-flex.active {
+	display:block;
+}
+.change-btn-cart-flex, .cart-action-btn-flex-c.active {
+	display:none;
+}
+.change-btn-cart-flex {
+	padding-top:25px;
+	clear:both;
+}
+.cart-action-btn-flex-c, .change-btn-cart-flex {
+	cursor:pointer;
+}
+
+
+  
+    .container.main.content {
+        width: 100%;
+        max-width: 100%;
+    }
+     .cart-temp_price .c-cart__itemPrice {
+      color: #000 !important;
+  }
+  .cart-temp_price .c-cart__itemPrice.c-cart__itemdiscountedprice {
+      color: red !important;
+  }
+</style>
+
+<!-- GPO installed -->
